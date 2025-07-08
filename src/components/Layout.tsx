@@ -25,7 +25,7 @@ export function Layout() {
             <div className="flex items-center space-x-8">
               <Link to="/" className="flex items-center space-x-2 text-xl font-bold text-gray-900">
                 <img src="/kyc-logo.png" alt="KYC Logo" className="w-8 h-8" />
-                <span>KYC</span>
+                <span>KYCc</span>
               </Link>
               
               <div className="hidden md:flex space-x-6">
