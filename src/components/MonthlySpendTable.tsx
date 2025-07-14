@@ -106,15 +106,15 @@ export function MonthlySpendTable({ cardId, cycleMonths, onSpendUpdate }: Monthl
 
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-      <h2 className="text-lg font-semibold text-gray-900 mb-6">Monthly Spending</h2>
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">Monthly Spending</h2>
       
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-200">
-              <th className="text-left py-3 px-4 font-medium text-gray-700">Month</th>
-              <th className="text-right py-3 px-4 font-medium text-gray-700">Amount Spent</th>
-              <th className="text-center py-3 px-4 font-medium text-gray-700">Actions</th>
+              <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-100">Month</th>
+              <th className="text-right py-3 px-4 font-medium text-gray-700 dark:text-gray-100">Amount Spent</th>
+              <th className="text-center py-3 px-4 font-medium text-gray-700 dark:text-gray-100">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -130,9 +130,9 @@ export function MonthlySpendTable({ cardId, cycleMonths, onSpendUpdate }: Monthl
                 <tr key={month} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="py-3 px-4">
                     <div className="flex items-center space-x-2">
-                      <span className="font-medium text-gray-900">{formatMonth(month)}</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">{formatMonth(month)}</span>
                       {isPastMonth && (
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                        <span className="text-xs bg-gray-100 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-full">
                           Past
                         </span>
                       )}
@@ -149,11 +149,11 @@ export function MonthlySpendTable({ cardId, cycleMonths, onSpendUpdate }: Monthl
                         placeholder="0"
                         step="0.01"
                         min="0"
-                        className="w-32 px-3 py-1 text-right border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-32 px-3 py-1 text-right border border-gray-300 dark:border-gray-700 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
                         autoFocus
                       />
                     ) : (
-                      <span className="font-semibold text-gray-900">
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">
                         {formatCurrency(spend?.amount_spent || 0)}
                       </span>
                     )}
@@ -164,13 +164,13 @@ export function MonthlySpendTable({ cardId, cycleMonths, onSpendUpdate }: Monthl
                         <button
                           onClick={() => handleSave(month)}
                           disabled={loading}
-                          className="p-1 text-green-600 hover:bg-green-50 rounded disabled:opacity-50"
+                          className="p-1 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900 rounded disabled:opacity-50"
                         >
                           <Save className="w-4 h-4" />
                         </button>
                         <button
                           onClick={handleCancel}
-                          className="p-1 text-gray-600 hover:bg-gray-50 rounded"
+                          className="p-1 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
                         >
                           ×
                         </button>
@@ -178,7 +178,7 @@ export function MonthlySpendTable({ cardId, cycleMonths, onSpendUpdate }: Monthl
                     ) : (
                       <button
                         onClick={() => handleEdit(month)}
-                        className="p-1 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
+                        className="p-1 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-800 rounded"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
@@ -191,7 +191,7 @@ export function MonthlySpendTable({ cardId, cycleMonths, onSpendUpdate }: Monthl
         </table>
       </div>
       
-      <div className="mt-4 text-sm text-gray-600">
+      <div className="mt-4 text-sm text-gray-600 dark:text-gray-300">
         <p>Click the edit icon to update spending for any month. Changes are saved automatically.</p>
       </div>
     </div>

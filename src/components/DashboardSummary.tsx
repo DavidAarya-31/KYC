@@ -12,7 +12,7 @@ interface DashboardStats {
   totalLimit: number;
 }
 
-export function DashboardSummary() {
+export function CardsOverview() {
   const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     totalMilestone: 0,
@@ -129,63 +129,63 @@ export function DashboardSummary() {
       <div className="flex flex-col md:flex-row md:items-stretch gap-6 mb-8">
         <div className="flex-1 flex flex-col gap-4 justify-center">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow w-full md:w-80">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-6 transition-colors">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-gray-600">Total Milestone</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Total Milestone</p>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
                     {formatCurrency(stats.totalMilestone)}
-                  </p>
+                  </h3>
                 </div>
-                <div className="p-2 bg-blue-100 rounded-full">
-                  <Target className="w-4 h-4 text-blue-600" />
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-full">
+                  <Target className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 </div>
               </div>
-              <p className="text-xs text-gray-500 mt-2">Across all cards</p>
+              <p className="text-gray-600 dark:text-gray-300 mt-2">Across all cards</p>
             </div>
-            <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow w-full md:w-80">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-6 transition-colors">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-gray-600">Total Limit</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Total Limit</p>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
                     {formatCurrency(stats.totalLimit)}
-                  </p>
+                  </h3>
                 </div>
-                <div className="p-2 bg-purple-100 rounded-full">
-                  <Target className="w-4 h-4 text-purple-600" />
+                <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-full">
+                  <Target className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                 </div>
               </div>
-              <p className="text-xs text-gray-500 mt-2">Sum of all card limits</p>
+              <p className="text-gray-600 dark:text-gray-300 mt-2">Sum of all card limits</p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow w-full md:w-80">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-6 transition-colors">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-gray-600">Total Spent</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Total Spent</p>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
                     {formatCurrency(stats.totalSpent)}
-                  </p>
+                  </h3>
                 </div>
-                <div className="p-2 bg-green-100 rounded-full">
-                  <TrendingUp className="w-4 h-4 text-green-600" />
+                <div className="p-2 bg-green-100 dark:bg-green-900 rounded-full">
+                  <TrendingUp className="w-4 h-4 text-green-600 dark:text-green-400" />
                 </div>
               </div>
-              <p className="text-xs text-gray-500 mt-2">Current cycle-to-date</p>
+              <p className="text-gray-600 dark:text-gray-300 mt-2">Current cycle-to-date</p>
             </div>
-            <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow w-full md:w-80">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-6 transition-colors">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-gray-600">Total Remaining</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Total Remaining</p>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
                     {formatCurrency(stats.totalRemaining)}
-                  </p>
+                  </h3>
                 </div>
-                <div className="p-2 bg-orange-100 rounded-full">
-                  <Wallet className="w-4 h-4 text-orange-600" />
+                <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-full">
+                  <Wallet className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                 </div>
               </div>
-              <p className="text-xs text-gray-500 mt-2">To reach milestones</p>
+              <p className="text-gray-600 dark:text-gray-300 mt-2">To reach milestones</p>
             </div>
           </div>
         </div>
@@ -193,8 +193,50 @@ export function DashboardSummary() {
           <PieChart cards={cards} />
         </div>
       </div>
+    </>
+  );
+}
+
+export function YourCards() {
+  const { user } = useAuth();
+  const [cards, setCards] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      fetchCards();
+    }
+  }, [user]);
+
+  const fetchCards = async () => {
+    try {
+      // Fetch all user's cards
+      const { data: cardsData, error: cardsError } = await supabase
+        .from('cards')
+        .select('*')
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false });
+      if (cardsError) throw cardsError;
+      const cardsWithSpending = [];
+      for (const card of cardsData || []) {
+        const cycle = getAnniversaryCycle(card.anniversary_month);
+        const { data: spends, error: spendsError } = await supabase
+          .from('monthly_spends')
+          .select('amount_spent')
+          .eq('card_id', card.id)
+          .in('month', cycle.months);
+        if (spendsError) throw spendsError;
+        const totalSpent = spends?.reduce((sum, spend) => sum + spend.amount_spent, 0) || 0;
+        cardsWithSpending.push({ ...card, totalSpent });
+      }
+      setCards(cardsWithSpending);
+    } catch (error) {
+      console.error('Error fetching cards for dashboard:', error);
+    }
+  };
+
+  return (
       <div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Cards</h2>
+      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Your Cards</h2>
         {cards.length === 0 ? (
           <div className="text-gray-500">No cards found.</div>
         ) : (
@@ -205,7 +247,6 @@ export function DashboardSummary() {
           </div>
         )}
       </div>
-    </>
   );
 }
 

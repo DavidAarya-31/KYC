@@ -76,7 +76,7 @@ export function NewCard() {
       <PageHeader title="Add New Card">
         <button
           onClick={() => navigate('/cards')}
-          className="inline-flex items-center px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          className="inline-flex items-center px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Cards
@@ -87,7 +87,7 @@ export function NewCard() {
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label htmlFor="card_company" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="card_company" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Card Company
               </label>
               <input

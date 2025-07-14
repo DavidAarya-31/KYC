@@ -37,10 +37,10 @@ export function CardTile({ card, spent }: CardTileProps) {
             <CreditCard className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">{card.card_name}</h3>
-            <p className="text-sm text-gray-600">{card.card_company} • {card.card_network}</p>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">{card.card_name}</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300">{card.card_company} • {card.card_network}</p>
             {card.card_limit != null && (
-              <p className="text-xs text-gray-500">Limit: {formatCurrency(card.card_limit)}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-300">Limit: {formatCurrency(card.card_limit)}</p>
             )}
           </div>
         </div>
@@ -49,19 +49,19 @@ export function CardTile({ card, spent }: CardTileProps) {
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <p className="text-gray-600">Milestone</p>
-            <p className="font-semibold text-gray-900">{formatCurrency(card.milestone_amount)}</p>
+            <p className="text-gray-600 dark:text-gray-300">Milestone</p>
+            <p className="font-semibold text-gray-900 dark:text-gray-100">{formatCurrency(card.milestone_amount)}</p>
           </div>
           <div>
-            <p className="text-gray-600">Spent</p>
-            <p className="font-semibold text-green-600">{formatCurrency(spent)}</p>
+            <p className="text-gray-600 dark:text-gray-300">Spent</p>
+            <p className="font-semibold text-green-600 dark:text-green-400">{formatCurrency(spent)}</p>
           </div>
         </div>
 
         <div>
           <div className="flex justify-between items-center mb-2">
-            <span className="text-sm text-gray-600">Progress</span>
-            <span className="text-sm font-medium text-gray-900">{progressPercentage.toFixed(0)}%</span>
+            <span className="text-sm text-gray-600 dark:text-gray-300">Progress</span>
+            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{progressPercentage.toFixed(0)}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
@@ -75,8 +75,8 @@ export function CardTile({ card, spent }: CardTileProps) {
           <div className={`flex items-center space-x-2 p-3 rounded-lg ${
             isUrgent ? 'bg-red-50 border border-red-200' : 'bg-blue-50 border border-blue-200'
           }`}>
-            <Calendar className={`w-4 h-4 ${isUrgent ? 'text-red-600' : 'text-blue-600'}`} />
-            <p className={`text-sm font-medium ${isUrgent ? 'text-red-700' : 'text-blue-700'}`}>
+            <Calendar className={`w-4 h-4 ${isUrgent ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`} />
+            <p className={`text-sm font-medium ${isUrgent ? 'text-red-700 dark:text-red-300' : 'text-blue-700 dark:text-blue-300'}`}>
               Spend {formatCurrency(remaining)} more by {endDate.toLocaleDateString()}
             </p>
           </div>
@@ -84,8 +84,8 @@ export function CardTile({ card, spent }: CardTileProps) {
 
         {remaining === 0 && (
           <div className="flex items-center space-x-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-            <div className="w-2 h-2 bg-green-500 rounded-full" />
-            <p className="text-sm font-medium text-green-700">Milestone completed!</p>
+            <div className="w-2 h-2 bg-green-500 dark:bg-green-400 rounded-full" />
+            <p className="text-sm font-medium text-green-700 dark:text-green-300">Milestone completed!</p>
           </div>
         )}
       </div>
@@ -99,16 +99,16 @@ export function CardTileCompact({ card, spent }: CardTileProps) {
   return (
     <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
       <div>
-        <div className="font-semibold text-gray-900">{card.card_name}</div>
-        <div className="text-xs text-gray-500">{card.card_company} • {card.card_network}</div>
+        <div className="font-semibold text-gray-900 dark:text-gray-100">{card.card_name}</div>
+        <div className="text-xs text-gray-500 dark:text-gray-300">{card.card_company} • {card.card_network}</div>
         {card.card_limit != null && (
-          <div className="text-xs text-gray-400">Limit: {formatCurrency(card.card_limit)}</div>
+          <div className="text-xs text-gray-400 dark:text-gray-300">Limit: {formatCurrency(card.card_limit)}</div>
         )}
       </div>
       <div className="w-40 ml-4">
         <div className="flex justify-between items-center mb-1">
-          <span className="text-xs text-gray-400">Progress</span>
-          <span className="text-xs font-medium text-gray-700">{progressPercentage.toFixed(0)}%</span>
+          <span className="text-xs text-gray-400 dark:text-gray-300">Progress</span>
+          <span className="text-xs font-medium text-gray-700 dark:text-gray-100">{progressPercentage.toFixed(0)}%</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div
