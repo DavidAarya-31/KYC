@@ -46,7 +46,7 @@ export function Layout() {
           <div className="flex justify-between h-16 items-center">
             <div className="flex items-center space-x-8">
               <Link to="/" className="flex items-center space-x-2 text-xl font-bold text-gray-900 dark:text-gray-100">
-                <img src="/kyc-logo.png" alt="KYCc Logo" className="w-8 h-8" />
+                <img src="/kyc-logo.png" alt="KYC Logo" className="w-8 h-8" />
                 <span>KYCc</span>
               </Link>
               
@@ -66,7 +66,7 @@ export function Layout() {
                   to="/cards"
                   className={({ isActive }) =>
                     isActive
-                      ? "flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-blue-600 bg-blue-50"
+                      ? "flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-gray-800"
                       : "flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors"
                   }
                 >
