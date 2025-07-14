@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useBudget } from '../contexts/BudgetContext';
 import { InsightsSection } from '../components/InsightsSection';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import Papa, { ParseResult, ParseError } from 'papaparse';
 
 const categoryOptions = [
   { value: 'Other', label: 'Other' },
@@ -493,10 +494,176 @@ const TransactionFormModal = ({ open, onClose, transaction }: { open: boolean; o
   );
 };
 
+// CSV Import Modal Component
+type CsvImportModalProps = {
+  open: boolean;
+  onClose: () => void;
+  categories: { id: string; name: string }[];
+  onImport: (rows: any[]) => void;
+};
+
+const CsvImportModal: React.FC<CsvImportModalProps> = ({ open, onClose, categories, onImport }) => {
+  const [step, setStep] = useState(1);
+  const [csvData, setCsvData] = useState<any[]>([]);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [mapping, setMapping] = useState<{ [key: string]: string }>({ amount: '', date: '', category: '', description: '', payment_method: '' });
+  const [preview, setPreview] = useState<any[]>([]);
+  const [error, setError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset modal state every time it is opened
+  React.useEffect(() => {
+    if (open) {
+      setStep(1);
+      setCsvData([]);
+      setHeaders([]);
+      setMapping({ amount: '', date: '', category: '', description: '', payment_method: '' });
+      setPreview([]);
+      setError('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [open]);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError('');
+    const file = e.target.files?.[0];
+    if (!file) return;
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results: ParseResult<any>) => {
+        setCsvData(results.data);
+        setHeaders(results.meta.fields || []);
+        setStep(2);
+      },
+      error: (err: ParseError) => setError('Failed to parse CSV: ' + err.message),
+    });
+  };
+
+  const handleMapChange = (field: string, value: string) => {
+    setMapping((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handlePreview = () => {
+    // Map CSV columns to transaction fields
+    const mapped = csvData.map(row => ({
+      amount: row[mapping.amount],
+      date: row[mapping.date],
+      category: row[mapping.category],
+      description: mapping.description ? row[mapping.description] : '',
+      payment_method: mapping.payment_method ? row[mapping.payment_method] : '',
+    }));
+    setPreview(mapped);
+    setStep(3);
+  };
+
+  const handleBackToFile = () => {
+    setStep(1);
+    setCsvData([]);
+    setHeaders([]);
+    setMapping({ amount: '', date: '', category: '', description: '', payment_method: '' });
+    setPreview([]);
+    setError('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleImport = () => {
+    // Set all imported transactions to category 'Other' and description 'Imported Transaction'
+    const otherCategory = categories.find(c => c.name.toLowerCase() === 'other');
+    const cleaned = preview.map(row => ({
+      ...row,
+      amount: parseFloat(row.amount),
+      date: row.date,
+      category_id: otherCategory ? otherCategory.id : null,
+      category: 'Other',
+      description: 'Imported Transaction',
+    }));
+    // Filter out invalid rows
+    const valid = cleaned.filter(row => row.amount && row.date && row.category_id);
+    const invalid = cleaned.length - valid.length;
+    if (invalid > 0) setError(`${invalid} rows have missing/invalid data and will be skipped.`);
+    onImport(valid);
+    onClose();
+  };
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-full max-w-2xl min-h-fit space-y-6 max-h-[90vh] overflow-y-auto">
+        <button className="absolute top-4 right-6 text-2xl text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300" onClick={onClose}>&times;</button>
+        <h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-gray-100">Import Transactions from CSV</h2>
+        {step === 1 && (
+          <div>
+            <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFile} className="mb-4" />
+            <p className="text-gray-500 text-sm">Upload a CSV file exported from your bank or credit card statement.</p>
+            {error && <div className="text-red-500 text-sm mt-2">{error}</div>}
+            <div className="mt-4 flex gap-2">
+              <button className="bg-neutral-800 text-gray-200 hover:bg-neutral-700 px-4 py-2 rounded transition-colors" onClick={onClose}>Cancel</button>
+            </div>
+          </div>
+        )}
+        {step === 2 && (
+          <div>
+            <h3 className="font-semibold mb-2">Map CSV Columns</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {['amount','date','category','description','payment_method'].map(field => (
+                <div key={field}>
+                  <label className="block mb-1 font-medium capitalize">{field.replace('_',' ')}</label>
+                  <select className="w-full border px-2 py-1 rounded" value={mapping[field]} onChange={e => handleMapChange(field, e.target.value)}>
+                    <option value="">-- Not Mapped --</option>
+                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button className="bg-blue-600 text-white px-4 py-2 rounded" onClick={handlePreview}>Preview</button>
+              <button className="bg-gray-200 text-gray-700 px-4 py-2 rounded" onClick={handleBackToFile}>Cancel</button>
+            </div>
+          </div>
+        )}
+        {step === 3 && (
+          <div>
+            <h3 className="font-semibold mb-2">Preview & Import</h3>
+            <div className="overflow-x-auto max-h-64 mb-4">
+              <table className="min-w-full text-sm border">
+                <thead>
+                  <tr>
+                    <th className="border px-2 py-1">Amount</th>
+                    <th className="border px-2 py-1">Date</th>
+                    <th className="border px-2 py-1">Category</th>
+                    <th className="border px-2 py-1">Description</th>
+                    <th className="border px-2 py-1">Payment Method</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.map((row, i) => (
+                    <tr key={i}>
+                      <td className="border px-2 py-1">{row.amount}</td>
+                      <td className="border px-2 py-1">{row.date}</td>
+                      <td className="border px-2 py-1">Other</td>
+                      <td className="border px-2 py-1">Imported Transaction</td>
+                      <td className="border px-2 py-1">{row.payment_method}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {error && <div className="text-red-500 text-sm mt-2">{error}</div>}
+            <button className="bg-blue-600 text-white px-4 py-2 rounded mr-2" onClick={handleImport}>Import</button>
+            <button className="bg-gray-200 text-gray-700 px-4 py-2 rounded" onClick={onClose}>Cancel</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const TransactionHistory = () => {
-  const { transactions, categories, removeTransaction } = useBudget();
+  const { transactions, categories, removeTransaction, addTransaction } = useBudget();
   const [showForm, setShowForm] = useState(false);
   const [editTransaction, setEditTransaction] = useState<any | null>(null);
+  const [showCsv, setShowCsv] = useState(false);
   const [search, setSearch] = useState('');
 
   // Helper to get category name
@@ -514,10 +681,27 @@ const TransactionHistory = () => {
     );
   });
 
+  const handleCsvImport = async (rows: any[]) => {
+    // For each row, addTransaction (could be optimized for batch insert)
+    for (const row of rows) {
+      await addTransaction({
+        amount: row.amount,
+        date: row.date,
+        category_id: row.category_id,
+        description: row.description,
+        // payment_method: row.payment_method, // Remove if not supported by backend type
+        type: 'expense', // Default to expense, or map if available
+      });
+    }
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <button className="bg-blue-600 text-white px-4 py-2 rounded font-semibold" onClick={() => { setEditTransaction(null); setShowForm(true); }}>+ Add Transaction</button>
+        <div className="flex gap-2">
+          <button className="bg-blue-600 text-white px-4 py-2 rounded font-semibold" onClick={() => { setEditTransaction(null); setShowForm(true); }}>+ Add Transaction</button>
+          <button className="bg-green-600 text-white px-4 py-2 rounded font-semibold" onClick={() => setShowCsv(true)}>Import CSV</button>
+        </div>
         <div className="flex flex-col ml-4 w-64">
           <label htmlFor="search-transactions" className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Search Transactions</label>
           <div className="relative">
@@ -533,6 +717,7 @@ const TransactionHistory = () => {
           </div>
         </div>
       </div>
+      <CsvImportModal open={showCsv} onClose={() => setShowCsv(false)} categories={categories} onImport={handleCsvImport} />
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6">
         <h2 className="text-xl font-bold mb-4 dark:text-gray-100">Transaction History</h2>
         <div className="divide-y">
