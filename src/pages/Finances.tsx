@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useBudget } from '../contexts/BudgetContext';
 import { InsightsSection } from '../components/InsightsSection';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 const categoryOptions = [
   { value: 'Other', label: 'Other' },
@@ -314,6 +316,7 @@ const BudgetCards = () => {
 
 const TransactionFormModal = ({ open, onClose, transaction }: { open: boolean; onClose: () => void; transaction?: any }) => {
   const { addTransaction, editTransaction, loading, error, categories } = useBudget();
+  const { user } = useAuth();
   const allCategories = categories.length > 0
     ? categories.map(c => ({ value: c.id, label: c.name }))
     : [];
@@ -322,6 +325,9 @@ const TransactionFormModal = ({ open, onClose, transaction }: { open: boolean; o
   const [categoryId, setCategoryId] = useState(transaction?.category_id || (allCategories[0]?.value || ''));
   const [note, setNote] = useState(transaction?.description || '');
   const [date, setDate] = useState(transaction?.date ? transaction.date.slice(0, 10) : '');
+  const [paymentMethod, setPaymentMethod] = useState(transaction?.payment_method || 'cash');
+  const [cardId, setCardId] = useState(transaction?.card_id || '');
+  const [cards, setCards] = useState<{ id: string; card_name: string; card_company: string }[]>([]);
   const [formError, setFormError] = useState('');
 
   React.useEffect(() => {
@@ -330,9 +336,23 @@ const TransactionFormModal = ({ open, onClose, transaction }: { open: boolean; o
     setCategoryId(transaction?.category_id || (allCategories[0]?.value || ''));
     setNote(transaction?.description || '');
     setDate(transaction?.date ? transaction.date.slice(0, 10) : '');
+    setPaymentMethod(transaction?.payment_method || 'cash');
+    setCardId(transaction?.card_id || '');
     setFormError('');
-    // eslint-disable-next-line
   }, [transaction, open, categories]);
+
+  React.useEffect(() => {
+    // Fetch user's credit cards for the dropdown
+    const fetchCards = async () => {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('cards')
+        .select('id, card_name, card_company')
+        .eq('user_id', user.id);
+      if (!error && data) setCards(data);
+    };
+    if (paymentMethod === 'credit_card') fetchCards();
+  }, [user, paymentMethod]);
 
   if (!open) return null;
 
@@ -341,12 +361,16 @@ const TransactionFormModal = ({ open, onClose, transaction }: { open: boolean; o
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return setFormError('Amount must be a positive number');
     if (!categoryId) return setFormError('Category is required');
     if (!date) return setFormError('Date is required');
+    if (!paymentMethod) return setFormError('Payment method is required');
+    if (paymentMethod === 'credit_card' && !cardId) return setFormError('Please select a credit card');
     const data = {
       type,
       amount: Number(amount),
       category_id: categoryId, // always a UUID
       description: note,
       date,
+      payment_method: paymentMethod,
+      card_id: paymentMethod === 'credit_card' ? cardId : null,
     };
     if (transaction) {
       await editTransaction(transaction.id, data);
@@ -361,73 +385,105 @@ const TransactionFormModal = ({ open, onClose, transaction }: { open: boolean; o
       <form className={modalPanel} onSubmit={handleSubmit} style={{ position: 'relative' }}>
         <button type="button" className={closeButton} onClick={onClose} aria-label="Close">&times;</button>
         <h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-gray-100">Add New Transaction</h2>
-        <div>
-          <label className={labelBase}>Type</label>
-          <select
-            className={inputBase}
-            value={type}
-            onChange={e => setType(e.target.value)}
-            required
-            disabled={allCategories.length === 0}
-          >
-            <option value="expense">Expense</option>
-            <option value="income">Income</option>
-          </select>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className={labelBase}>Amount</label>
+            <input
+              className={inputBase}
+              type="number"
+              min="0"
+              placeholder="Enter amount"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              required
+              disabled={allCategories.length === 0}
+            />
+          </div>
+          <div>
+            <label className={labelBase}>Type</label>
+            <select
+              className={inputBase}
+              value={type}
+              onChange={e => setType(e.target.value)}
+              required
+              disabled={allCategories.length === 0}
+            >
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelBase}>Category</label>
+            {allCategories.length === 0 ? (
+              <div className="text-red-500 text-sm font-medium mb-2">No categories found. Please add a category first.</div>
+            ) : null}
+            <select
+              className={inputBase}
+              value={categoryId}
+              onChange={e => setCategoryId(e.target.value)}
+              required
+              disabled={allCategories.length === 0}
+            >
+              {allCategories.map(cat => (
+                <option key={cat.value} value={cat.value}>{cat.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelBase}>Date</label>
+            <input
+              className={inputBase}
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              required
+              disabled={allCategories.length === 0}
+            />
+          </div>
+          <div>
+            <label className={labelBase}>Paid By</label>
+            <select
+              className={inputBase}
+              value={paymentMethod}
+              onChange={e => setPaymentMethod(e.target.value)}
+              required
+            >
+              <option value="credit_card">Credit Card</option>
+              <option value="upi">UPI</option>
+              <option value="cash">Cash</option>
+              <option value="debit_card">Debit Card</option>
+            </select>
+          </div>
+          {paymentMethod === 'credit_card' && (
+            <div>
+              <label className={labelBase}>Select Credit Card</label>
+              <select
+                className={inputBase}
+                value={cardId}
+                onChange={e => setCardId(e.target.value)}
+                required
+              >
+                <option value="">Select a card</option>
+                {cards.map((card: any) => (
+                  <option key={card.id} value={card.id}>{card.card_name} ({card.card_company})</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="md:col-span-2">
+            <label className={labelBase}>Note</label>
+            <input
+              className={inputBase}
+              type="text"
+              placeholder="Enter transaction note"
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              disabled={allCategories.length === 0}
+            />
+          </div>
         </div>
-        <div>
-          <label className={labelBase}>Amount</label>
-          <input
-            className={inputBase}
-            type="number"
-            min="0"
-            placeholder="Enter amount"
-            value={amount}
-            onChange={e => setAmount(e.target.value)}
-            required
-            disabled={allCategories.length === 0}
-          />
-        </div>
-        <div>
-          <label className={labelBase}>Category</label>
-          {allCategories.length === 0 ? (
-            <div className="text-red-500 text-sm font-medium mb-2">No categories found. Please add a category first.</div>
-          ) : null}
-          <select
-            className={inputBase}
-            value={categoryId}
-            onChange={e => setCategoryId(e.target.value)}
-            required
-            disabled={allCategories.length === 0}
-          >
-            {allCategories.map(cat => (
-              <option key={cat.value} value={cat.value}>{cat.label}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className={labelBase}>Note</label>
-          <input
-            className={inputBase}
-            type="text"
-            placeholder="Enter transaction note"
-            value={note}
-            onChange={e => setNote(e.target.value)}
-            disabled={allCategories.length === 0}
-          />
-        </div>
-        <div>
-          <label className={labelBase}>Date</label>
-          <input
-            className={inputBase}
-            type="date"
-            value={date}
-            onChange={e => setDate(e.target.value)}
-            required
-            disabled={allCategories.length === 0}
-          />
-        </div>
-        {formError && <div className="text-red-500 text-sm font-medium">{formError}</div>}
-        {error && <div className="text-red-500 dark:text-red-300 text-sm font-medium">{error}</div>}
+        {formError && <div className="text-red-500 text-sm font-medium mt-2">{formError}</div>}
+        {error && <div className="text-red-500 dark:text-red-300 text-sm font-medium mt-2">{error}</div>}
         <div className="flex justify-end space-x-3 mt-6">
           <button type="button" className={buttonBase + " bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-neutral-800 dark:text-gray-200 dark:hover:bg-neutral-700 transition-colors"} onClick={onClose}>Cancel</button>
           <button type="submit" className={buttonBase + " bg-blue-600 text-white dark:text-gray-100 hover:bg-blue-700 shadow-md"} disabled={loading || allCategories.length === 0}>{transaction ? 'Update Transaction' : 'Add Transaction'}</button>
