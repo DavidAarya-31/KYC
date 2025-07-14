@@ -10,6 +10,7 @@ import { useAuth } from './AuthContext';
 export interface Budget {
   id: string;
   name: string;
+  category_id: string;
   total_amount: number;
   period_type: 'monthly' | 'weekly' | 'custom';
   start_date: string;

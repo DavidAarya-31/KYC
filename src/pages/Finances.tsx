@@ -137,7 +137,7 @@ const BudgetFormModal = ({ open, onClose, budget }: { open: boolean; onClose: ()
   const { addBudget, editBudget, loading, error, categories } = useBudget();
   const allCategories = categories.length > 0
     ? categories.map(c => ({ value: c.id, label: c.name }))
-    : categoryOptions;
+    : [];
   const [categoryId, setCategoryId] = useState(budget?.category_id || (allCategories[0]?.value || ''));
   const [totalAmount, setTotalAmount] = useState(budget?.total_amount || '');
   const [periodType, setPeriodType] = useState(budget?.period_type || 'monthly');
@@ -162,10 +162,11 @@ const BudgetFormModal = ({ open, onClose, budget }: { open: boolean; onClose: ()
     if (!startDate) return setFormError('Start date is required');
     const selectedCategory = allCategories.find(c => c.value === categoryId);
     const data: any = {
-      name: selectedCategory ? selectedCategory.label : 'Other',
+      name: selectedCategory ? selectedCategory.label : '',
       total_amount: Number(totalAmount),
       period_type: periodType,
       start_date: startDate,
+      category_id: categoryId,
     };
     if (budget && budget.end_date) {
       data.end_date = budget.end_date;
@@ -185,11 +186,15 @@ const BudgetFormModal = ({ open, onClose, budget }: { open: boolean; onClose: ()
         <h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-gray-100">Create New Budget</h2>
         <div>
           <label className={labelBase}>Category</label>
+          {allCategories.length === 0 ? (
+            <div className="text-red-500 text-sm font-medium mb-2">No categories found. Please add a category first.</div>
+          ) : null}
           <select
             className={inputBase}
             value={categoryId}
             onChange={e => setCategoryId(e.target.value)}
             required
+            disabled={allCategories.length === 0}
           >
             {allCategories.map(cat => (
               <option key={cat.value} value={cat.value}>{cat.label}</option>
@@ -206,6 +211,7 @@ const BudgetFormModal = ({ open, onClose, budget }: { open: boolean; onClose: ()
             value={totalAmount}
             onChange={e => setTotalAmount(e.target.value)}
             required
+            disabled={allCategories.length === 0}
           />
         </div>
         <div>
@@ -215,6 +221,7 @@ const BudgetFormModal = ({ open, onClose, budget }: { open: boolean; onClose: ()
             value={periodType}
             onChange={e => setPeriodType(e.target.value)}
             required
+            disabled={allCategories.length === 0}
           >
             <option value="monthly">Monthly</option>
             <option value="weekly">Weekly</option>
@@ -229,13 +236,14 @@ const BudgetFormModal = ({ open, onClose, budget }: { open: boolean; onClose: ()
             value={startDate}
             onChange={e => setStartDate(e.target.value)}
             required
+            disabled={allCategories.length === 0}
           />
         </div>
         {formError && <div className="text-red-500 text-sm font-medium">{formError}</div>}
         {error && <div className="text-red-500 dark:text-red-300 text-sm font-medium">{error}</div>}
         <div className="flex justify-end space-x-3 mt-6">
-          <button type="button" className={buttonBase + " bg-gray-100 text-gray-700 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-800"} onClick={onClose}>Cancel</button>
-          <button type="submit" className={buttonBase + " bg-blue-600 text-white dark:text-gray-100 hover:bg-blue-700 shadow-md"} disabled={loading}>{budget ? 'Update Budget' : 'Create Budget'}</button>
+          <button type="button" className={buttonBase + " bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-neutral-800 dark:text-gray-200 dark:hover:bg-neutral-700 transition-colors"} onClick={onClose}>Cancel</button>
+          <button type="submit" className={buttonBase + " bg-blue-600 text-white dark:text-gray-100 hover:bg-blue-700 shadow-md"} disabled={loading || allCategories.length === 0}>{budget ? 'Update Budget' : 'Create Budget'}</button>
         </div>
       </form>
     </div>
@@ -254,7 +262,8 @@ const BudgetCards = () => {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {budgets.map(budget => {
-          const spent = transactions.filter(t => t.budget_id === budget.id && t.type === 'expense').reduce((sum, t) => sum + (t.amount || 0), 0);
+          // FIX: Calculate spent by category_id, not budget_id
+          const spent = transactions.filter(t => t.category_id === budget.category_id && t.type === 'expense').reduce((sum, t) => sum + (t.amount || 0), 0);
           const remaining = Math.max(0, budget.total_amount - spent);
           const percent = budget.total_amount > 0 ? (spent / budget.total_amount) * 100 : 0;
           let status = 'On Track', statusColor = 'green';
@@ -307,7 +316,7 @@ const TransactionFormModal = ({ open, onClose, transaction }: { open: boolean; o
   const { addTransaction, editTransaction, loading, error, categories } = useBudget();
   const allCategories = categories.length > 0
     ? categories.map(c => ({ value: c.id, label: c.name }))
-    : categoryOptions;
+    : [];
   const [type, setType] = useState(transaction?.type || 'expense');
   const [amount, setAmount] = useState(transaction?.amount || '');
   const [categoryId, setCategoryId] = useState(transaction?.category_id || (allCategories[0]?.value || ''));
@@ -332,11 +341,10 @@ const TransactionFormModal = ({ open, onClose, transaction }: { open: boolean; o
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return setFormError('Amount must be a positive number');
     if (!categoryId) return setFormError('Category is required');
     if (!date) return setFormError('Date is required');
-    const selectedCategory = allCategories.find(c => c.value === categoryId);
     const data = {
       type,
       amount: Number(amount),
-      category_id: categoryId,
+      category_id: categoryId, // always a UUID
       description: note,
       date,
     };
@@ -360,6 +368,7 @@ const TransactionFormModal = ({ open, onClose, transaction }: { open: boolean; o
             value={type}
             onChange={e => setType(e.target.value)}
             required
+            disabled={allCategories.length === 0}
           >
             <option value="expense">Expense</option>
             <option value="income">Income</option>
@@ -375,15 +384,20 @@ const TransactionFormModal = ({ open, onClose, transaction }: { open: boolean; o
             value={amount}
             onChange={e => setAmount(e.target.value)}
             required
+            disabled={allCategories.length === 0}
           />
         </div>
         <div>
           <label className={labelBase}>Category</label>
+          {allCategories.length === 0 ? (
+            <div className="text-red-500 text-sm font-medium mb-2">No categories found. Please add a category first.</div>
+          ) : null}
           <select
             className={inputBase}
             value={categoryId}
             onChange={e => setCategoryId(e.target.value)}
             required
+            disabled={allCategories.length === 0}
           >
             {allCategories.map(cat => (
               <option key={cat.value} value={cat.value}>{cat.label}</option>
@@ -398,6 +412,7 @@ const TransactionFormModal = ({ open, onClose, transaction }: { open: boolean; o
             placeholder="Enter transaction note"
             value={note}
             onChange={e => setNote(e.target.value)}
+            disabled={allCategories.length === 0}
           />
         </div>
         <div>
@@ -408,13 +423,14 @@ const TransactionFormModal = ({ open, onClose, transaction }: { open: boolean; o
             value={date}
             onChange={e => setDate(e.target.value)}
             required
+            disabled={allCategories.length === 0}
           />
         </div>
         {formError && <div className="text-red-500 text-sm font-medium">{formError}</div>}
         {error && <div className="text-red-500 dark:text-red-300 text-sm font-medium">{error}</div>}
         <div className="flex justify-end space-x-3 mt-6">
-          <button type="button" className={buttonBase + " bg-gray-100 text-gray-700 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-800"} onClick={onClose}>Cancel</button>
-          <button type="submit" className={buttonBase + " bg-blue-600 text-white dark:text-gray-100 hover:bg-blue-700 shadow-md"} disabled={loading}>{transaction ? 'Update Transaction' : 'Add Transaction'}</button>
+          <button type="button" className={buttonBase + " bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-neutral-800 dark:text-gray-200 dark:hover:bg-neutral-700 transition-colors"} onClick={onClose}>Cancel</button>
+          <button type="submit" className={buttonBase + " bg-blue-600 text-white dark:text-gray-100 hover:bg-blue-700 shadow-md"} disabled={loading || allCategories.length === 0}>{transaction ? 'Update Transaction' : 'Add Transaction'}</button>
         </div>
       </form>
     </div>
@@ -430,7 +446,7 @@ const TransactionHistory = () => {
   // Helper to get category name
   const getCategoryName = (id: string) => {
     const cat = categories.find(c => c.id === id);
-    return cat ? cat.name : categoryOptions.find(c => c.value === id)?.label || 'Other';
+    return cat ? cat.name : 'Other';
   };
 
   const filteredTransactions = transactions.filter(tx => {

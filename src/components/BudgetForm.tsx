@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useBudget } from '../contexts/BudgetContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Props {
   budget?: any;
@@ -7,24 +8,30 @@ interface Props {
 }
 
 const BudgetForm: React.FC<Props> = ({ budget, onClose }) => {
-  const { addBudget, editBudget, loading, error } = useBudget();
+  const { addBudget, editBudget, loading, error, categories } = useBudget();
+  const { user } = useAuth();
   const [name, setName] = useState(budget?.name || '');
   const [totalAmount, setTotalAmount] = useState(budget?.total_amount || '');
   const [periodType, setPeriodType] = useState(budget?.period_type || 'monthly');
   const [startDate, setStartDate] = useState(budget?.start_date || '');
   const [endDate, setEndDate] = useState(budget?.end_date || '');
+  const [categoryId, setCategoryId] = useState(budget?.category_id || (categories[0]?.id || ''));
   const [formError, setFormError] = useState('');
 
   useEffect(() => {
     setFormError('');
-  }, [name, totalAmount, periodType, startDate, endDate]);
+  }, [name, totalAmount, periodType, startDate, endDate, categoryId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setFormError('Name is required');
     if (!totalAmount || isNaN(Number(totalAmount)) || Number(totalAmount) <= 0) return setFormError('Total amount must be a positive number');
     if (!startDate) return setFormError('Start date is required');
+    if (!categoryId) return setFormError('Category is required');
+    if (!user?.id) return setFormError('User not authenticated');
     const data = {
+      user_id: user.id,
+      category_id: categoryId,
       name: name.trim(),
       total_amount: Number(totalAmount),
       period_type: periodType,
@@ -46,6 +53,23 @@ const BudgetForm: React.FC<Props> = ({ budget, onClose }) => {
         <div>
           <label className="block mb-1">Name</label>
           <input className="w-full border px-2 py-1 rounded" value={name} onChange={e => setName(e.target.value)} required />
+        </div>
+        <div>
+          <label className="block mb-1">Category</label>
+          {categories.length === 0 ? (
+            <div className="text-red-500 text-sm font-medium mb-2">No categories found. Please contact admin.</div>
+          ) : null}
+          <select
+            className="w-full border px-2 py-1 rounded"
+            value={categoryId}
+            onChange={e => setCategoryId(e.target.value)}
+            required
+            disabled={categories.length === 0}
+          >
+            {categories.map(cat => (
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block mb-1">Total Amount</label>
@@ -72,8 +96,8 @@ const BudgetForm: React.FC<Props> = ({ budget, onClose }) => {
         {formError && <div className="text-red-500">{formError}</div>}
         {error && <div className="text-red-500">{error}</div>}
         <div className="flex justify-end space-x-2">
-          <button type="button" className="px-4 py-1 rounded border" onClick={onClose}>Cancel</button>
-          <button type="submit" className="bg-blue-500 text-white px-4 py-1 rounded" disabled={loading}>{budget ? 'Update' : 'Create'}</button>
+          <button type="button" className="px-4 py-1 rounded border bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-neutral-800 dark:text-gray-200 dark:hover:bg-neutral-700 transition-colors" onClick={onClose}>Cancel</button>
+          <button type="submit" className="bg-blue-500 text-white px-4 py-1 rounded" disabled={loading || categories.length === 0}>{budget ? 'Update' : 'Create'}</button>
         </div>
       </form>
     </div>
