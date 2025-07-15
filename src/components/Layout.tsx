@@ -40,17 +40,17 @@ export function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors overflow-x-hidden">
       <nav className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800 transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center space-x-8">
-              <Link to="/" className="flex items-center space-x-2 text-xl font-bold text-gray-900 dark:text-gray-100">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 md:px-6 lg:px-8">
+          <div className="flex flex-row flex-nowrap justify-between h-16 items-center w-full max-w-full">
+            <div className="flex items-center space-x-4 sm:space-x-8 min-w-0">
+              <Link to="/" className="flex items-center space-x-2 text-xl font-bold text-gray-900 dark:text-gray-100 min-w-0">
                 <img src="/kyc-logo.png" alt="KYC Logo" className="w-8 h-8" />
-                <span>KYCc</span>
+                <span className="truncate">KYCc</span>
               </Link>
               
-              <div className="hidden md:flex space-x-6">
+              <div className="hidden md:flex space-x-2 sm:space-x-4">
                 <NavLink
                   to="/dashboard"
                   className={({ isActive }) =>
@@ -96,10 +96,10 @@ export function Layout() {
               </button>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
+            <div className="flex flex-row items-center space-x-2 sm:space-x-4 min-w-0">
+              <div className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300 min-w-0">
                 <User className="w-4 h-4" />
-                <span>{user?.email}</span>
+                <span className="truncate max-w-[80px] sm:max-w-[140px] md:max-w-[200px]">{user?.email}</span>
               </div>
               <button
                 onClick={handleSignOut}
@@ -110,7 +110,7 @@ export function Layout() {
               </button>
               <button
                 onClick={toggleDark}
-                className="ml-4 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 aria-label="Toggle dark mode"
               >
                 {dark ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-gray-700" />}
@@ -150,7 +150,7 @@ export function Layout() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-colors dark:bg-gray-950">
+      <main className="max-w-7xl mx-auto px-2 sm:px-4 md:px-6 lg:px-8 py-6 transition-colors dark:bg-gray-950 w-full overflow-x-hidden">
         <Outlet />
       </main>
     </div>

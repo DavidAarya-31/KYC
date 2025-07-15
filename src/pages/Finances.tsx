@@ -4,6 +4,7 @@ import { InsightsSection } from '../components/InsightsSection';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import Papa, { ParseResult, ParseError } from 'papaparse';
+import NotificationBanner, { NotificationType } from '../components/NotificationBanner';
 
 const categoryOptions = [
   { value: 'Other', label: 'Other' },
@@ -20,8 +21,8 @@ const categoryOptions = [
   { value: 'Personal Care', label: 'Personal Care' }
 ];
 
-const modalBackdrop = "fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 transition-opacity duration-200";
-const modalPanel = "bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-full max-w-lg min-h-fit space-y-6 transform transition-all duration-300 scale-95 opacity-0 animate-fadeInScale max-h-[90vh] overflow-y-auto";
+const modalBackdrop = "fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 transition-opacity duration-200 overflow-x-hidden";
+const modalPanel = "bg-white dark:bg-gray-900 p-2 sm:p-6 rounded-2xl shadow-2xl w-full max-w-full sm:max-w-lg min-h-fit space-y-6 transform transition-all duration-300 scale-95 opacity-0 animate-fadeInScale max-h-[90vh] overflow-y-auto overflow-x-hidden";
 
 // Add keyframes for fadeInScale animation
 const style = document.createElement('style');
@@ -589,7 +590,7 @@ const CsvImportModal: React.FC<CsvImportModalProps> = ({ open, onClose, categori
   if (!open) return null;
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-full max-w-2xl min-h-fit space-y-6 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-900 p-2 sm:p-6 rounded-2xl shadow-2xl w-full max-w-full sm:max-w-2xl min-h-fit space-y-6 max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <button className="absolute top-4 right-6 text-2xl text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300" onClick={onClose}>&times;</button>
         <h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-gray-100">Import Transactions from CSV</h2>
         {step === 1 && (
@@ -665,11 +666,50 @@ const TransactionHistory = () => {
   const [editTransaction, setEditTransaction] = useState<any | null>(null);
   const [showCsv, setShowCsv] = useState(false);
   const [search, setSearch] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [notification, setNotification] = useState<{ message: string; type: NotificationType } | null>(null);
 
   // Helper to get category name
   const getCategoryName = (id: string) => {
     const cat = categories.find(c => c.id === id);
     return cat ? cat.name : 'Other';
+  };
+
+  // Handle select all
+  const handleSelectAll = (checked: boolean, txs: any[]) => {
+    setSelectAll(checked);
+    setSelected(checked ? txs.map(t => t.id) : []);
+  };
+
+  // Handle select one
+  const handleSelectOne = (id: string, checked: boolean) => {
+    setSelected(prev => checked ? [...prev, id] : prev.filter(sid => sid !== id));
+  };
+
+  // Bulk delete
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Delete ${selected.length} transactions? This cannot be undone.`)) return;
+    setBulkDeleting(true);
+    let failed: string[] = [];
+    for (const id of selected) {
+      try {
+        await removeTransaction(id);
+      } catch {
+        failed.push(id);
+      }
+    }
+    setBulkDeleting(false);
+    setSelected([]);
+    setSelectAll(false);
+    if (failed.length > 0) {
+      setNotification({ message: `Failed to delete ${failed.length} transactions.`, type: 'error' });
+    } else {
+      setNotification({ message: 'Transactions deleted successfully.', type: 'success' });
+    }
   };
 
   const filteredTransactions = transactions.filter(tx => {
@@ -695,6 +735,23 @@ const TransactionHistory = () => {
     }
   };
 
+  // Handle outside click to close dropdown
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(null);
+      }
+    }
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [dropdownOpen]);
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -718,15 +775,57 @@ const TransactionHistory = () => {
         </div>
       </div>
       <CsvImportModal open={showCsv} onClose={() => setShowCsv(false)} categories={categories} onImport={handleCsvImport} />
+      {notification && (
+        <NotificationBanner
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification(null)}
+        />
+      )}
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6">
         <h2 className="text-xl font-bold mb-4 dark:text-gray-100">Transaction History</h2>
+        {/* Bulk action toolbar */}
+        {selected.length > 0 && (
+          <div className="mb-4 flex items-center gap-4 bg-red-50 dark:bg-red-900 p-3 rounded-lg border border-red-200 dark:border-red-700">
+            <span className="font-medium text-red-700 dark:text-red-300">{selected.length} selected</span>
+            <button
+              className="bg-red-600 text-white px-4 py-2 rounded font-semibold disabled:opacity-50"
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+            >
+              {bulkDeleting ? 'Deleting...' : 'Bulk Delete'}
+            </button>
+          </div>
+        )}
         <div className="divide-y">
+          {/* Select All Checkbox */}
+          {filteredTransactions.length > 0 && (
+            <div className="flex items-center mb-2">
+              <input
+                type="checkbox"
+                checked={selectAll}
+                onChange={e => handleSelectAll(e.target.checked, filteredTransactions)}
+                className="mr-2 w-5 h-5 rounded border-gray-300 focus:ring-2 focus:ring-blue-500 accent-blue-600 transition-colors duration-150 hover:border-blue-400 hover:shadow"
+                aria-label="Select all transactions"
+              />
+              <span className="text-sm text-gray-600 dark:text-gray-300">Select All</span>
+            </div>
+          )}
           {filteredTransactions.length === 0 && <div className="text-gray-500 dark:text-gray-300 py-8 text-center">No transactions found. Click "Add Transaction" to add one.</div>}
           {filteredTransactions.map(tx => (
             <div
               key={tx.id}
-              className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-0 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl px-6 py-4 mb-4 shadow-sm transition-colors"
+              className={`flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-0 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl px-6 py-4 mb-4 shadow-sm transition-colors ${selected.includes(tx.id) ? 'ring-2 ring-red-400 dark:ring-red-600' : ''}`}
             >
+              <div className="flex items-center mr-4">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(tx.id)}
+                  onChange={e => handleSelectOne(tx.id, e.target.checked)}
+                  className="mr-2 w-5 h-5 rounded border-gray-300 focus:ring-2 focus:ring-blue-500 accent-blue-600 transition-colors duration-150 hover:border-blue-400 hover:shadow"
+                  aria-label="Select transaction"
+                />
+              </div>
               <div className="flex-1 flex flex-col md:flex-row md:items-center gap-2 md:gap-6">
                 <div className="flex items-center text-gray-500 dark:text-gray-300 mb-1 md:mb-0">
                   <span className="inline-block align-middle mr-2 text-lg">🏷️</span>
@@ -749,20 +848,32 @@ const TransactionHistory = () => {
                 }>
                   {tx.type === 'income' ? '+' : '-'}₹{Number(tx.amount).toLocaleString()}
                 </div>
-                <button
-                  className="flex items-center px-3 py-1 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 transition-colors border border-transparent hover:border-blue-200 dark:hover:border-blue-700 text-sm font-medium"
-                  onClick={() => { setEditTransaction(tx); setShowForm(true); }}
-                >
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19.5 3 21l1.5-4L16.5 3.5z" /></svg>
-                  Edit
-                </button>
-                <button
-                  className="flex items-center px-3 py-1 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900 transition-colors border border-transparent hover:border-red-200 dark:hover:border-red-700 text-sm font-medium"
-                  onClick={() => removeTransaction(tx.id)}
-                >
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><rect x="5" y="6" width="14" height="14" rx="2" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
-                  Delete
-                </button>
+                {/* Three-dot dropdown menu */}
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none"
+                    onClick={() => setDropdownOpen(dropdownOpen === tx.id ? null : tx.id)}
+                    aria-label="Transaction actions"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
+                  </button>
+                  {dropdownOpen === tx.id && (
+                    <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+                      <button
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-t-lg"
+                        onClick={() => { setEditTransaction(tx); setShowForm(true); setDropdownOpen(null); }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="w-full text-left px-4 py-2 hover:bg-red-100 dark:hover:bg-red-800 text-red-600 dark:text-red-400 rounded-b-lg"
+                        onClick={() => { removeTransaction(tx.id); setDropdownOpen(null); }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}

@@ -79,6 +79,12 @@ export const BudgetProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
+  // Clear undo history on mount (page reload)
+  useEffect(() => {
+    // clearHistory(); // Removed as per edit hint
+    // eslint-disable-next-line
+  }, []);
+
   // Fetch all data on mount
   useEffect(() => {
     const fetchAll = async () => {
