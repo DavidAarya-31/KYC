@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import Papa, { ParseResult, ParseError } from 'papaparse';
 import NotificationBanner, { NotificationType } from '../components/NotificationBanner';
+import Tesseract from 'tesseract.js';
 
 const categoryOptions = [
   { value: 'Other', label: 'Other' },
@@ -316,7 +317,7 @@ const BudgetCards = () => {
   );
 };
 
-const TransactionFormModal = ({ open, onClose, transaction }: { open: boolean; onClose: () => void; transaction?: any }) => {
+const TransactionFormModal = ({ open, onClose, transaction, prefillData, prefillPhoto }: { open: boolean; onClose: () => void; transaction?: any; prefillData?: any; prefillPhoto?: File | null }) => {
   const { addTransaction, editTransaction, loading, error, categories } = useBudget();
   const { user } = useAuth();
   const allCategories = categories.length > 0
@@ -387,6 +388,16 @@ const TransactionFormModal = ({ open, onClose, transaction }: { open: boolean; o
       <form className={modalPanel} onSubmit={handleSubmit} style={{ position: 'relative' }}>
         <button type="button" className={closeButton} onClick={onClose} aria-label="Close">&times;</button>
         <h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-gray-100">Add New Transaction</h2>
+        {prefillPhoto && (
+          <div className="mb-4 flex justify-center">
+            <img src={URL.createObjectURL(prefillPhoto)} alt="Receipt Preview" className="max-h-40 rounded shadow" />
+          </div>
+        )}
+        {transaction?.ocrWarning && (
+          <div className="mb-2 text-yellow-700 bg-yellow-100 border-l-4 border-yellow-500 p-2 rounded">
+            {transaction.ocrWarning}
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelBase}>Amount</label>
@@ -501,32 +512,52 @@ type CsvImportModalProps = {
   onClose: () => void;
   categories: { id: string; name: string }[];
   onImport: (rows: any[]) => void;
+  onExtracted?: (data: any, photo: File | null) => void;
 };
 
-const CsvImportModal: React.FC<CsvImportModalProps> = ({ open, onClose, categories, onImport }) => {
+const ImportModal: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  categories: { id: string; name: string }[];
+  onImport: (rows: any[]) => void;
+  onExtracted?: (data: any, photo: File | null) => void;
+}> = ({ open, onClose, categories, onImport, onExtracted }) => {
+  const [tab, setTab] = useState<'csv' | 'photo'>('csv');
+  // CSV state
   const [step, setStep] = useState(1);
   const [csvData, setCsvData] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<{ [key: string]: string }>({ amount: '', date: '', category: '', description: '', payment_method: '' });
   const [preview, setPreview] = useState<any[]>([]);
-  const [error, setError] = useState('');
+  const [csvError, setCsvError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Photo state
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState('');
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrError, setOcrError] = useState('');
 
   // Reset modal state every time it is opened
   React.useEffect(() => {
     if (open) {
+      setTab('csv');
       setStep(1);
       setCsvData([]);
       setHeaders([]);
       setMapping({ amount: '', date: '', category: '', description: '', payment_method: '' });
       setPreview([]);
-      setError('');
+      setCsvError('');
+      setPhoto(null);
+      setPhotoPreview(null);
+      setPhotoError('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }, [open]);
 
+  // CSV handlers (same as before)
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setError('');
+    setCsvError('');
     const file = e.target.files?.[0];
     if (!file) return;
     Papa.parse(file, {
@@ -537,14 +568,12 @@ const CsvImportModal: React.FC<CsvImportModalProps> = ({ open, onClose, categori
         setHeaders(results.meta.fields || []);
         setStep(2);
       },
-      error: (err: ParseError) => setError('Failed to parse CSV: ' + err.message),
+      error: (err: ParseError) => setCsvError('Failed to parse CSV: ' + err.message),
     });
   };
-
   const handleMapChange = (field: string, value: string) => {
     setMapping((prev) => ({ ...prev, [field]: value }));
   };
-
   const handlePreview = () => {
     // Map CSV columns to transaction fields
     const mapped = csvData.map(row => ({
@@ -557,17 +586,6 @@ const CsvImportModal: React.FC<CsvImportModalProps> = ({ open, onClose, categori
     setPreview(mapped);
     setStep(3);
   };
-
-  const handleBackToFile = () => {
-    setStep(1);
-    setCsvData([]);
-    setHeaders([]);
-    setMapping({ amount: '', date: '', category: '', description: '', payment_method: '' });
-    setPreview([]);
-    setError('');
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
   const handleImport = () => {
     // Set all imported transactions to category 'Other' and description 'Imported Transaction'
     const otherCategory = categories.find(c => c.name.toLowerCase() === 'other');
@@ -581,83 +599,146 @@ const CsvImportModal: React.FC<CsvImportModalProps> = ({ open, onClose, categori
     }));
     // Filter out invalid rows
     const valid = cleaned.filter(row => row.amount && row.date && row.category_id);
-    const invalid = cleaned.length - valid.length;
-    if (invalid > 0) setError(`${invalid} rows have missing/invalid data and will be skipped.`);
     onImport(valid);
     onClose();
   };
 
-  if (!open) return null;
-  return (
+  // Photo handlers
+  const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPhotoError('');
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Please select an image file.');
+      return;
+    }
+    setPhoto(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  // OCR extraction handler
+  const handleExtract = async () => {
+    if (!photo) return;
+    setOcrLoading(true);
+    setOcrError('');
+    try {
+      const { data: { text } } = await Tesseract.recognize(photo, 'eng');
+      // Simple regex-based parsing for amount and date
+      let amountMatch = text.match(/(?:INR|Rs\.?|₹|3|B)\s*([0-9,.]+)/i) || text.match(/([0-9]+[.,][0-9]{2,})/);
+      let amount = amountMatch ? amountMatch[1].replace(/,/g, '') : '';
+      // If amount starts with '3' and is 6+ digits, remove the leading '3'
+      if (/^3\d{5,}$/.test(amount)) {
+        amount = amount.slice(1);
+      }
+      const dateMatch = text.match(/(\d{2}[\/\-.]\d{2}[\/\-.]\d{2,4})/);
+      const date = dateMatch ? dateMatch[1].replace(/\./g, '-').replace(/\//g, '-') : '';
+      // Add a warning if amount is suspiciously large (7+ digits)
+      let ocrWarning = '';
+      if (amount.length >= 7) {
+        ocrWarning = 'Warning: The extracted amount seems unusually large. Please double-check.';
+      }
+      if (onExtracted) {
+        onExtracted({ amount, date, description: 'Scanned from photo', ocrWarning }, photo);
+      }
+    } catch (err) {
+      setOcrError('Failed to extract text from image.');
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
+  return open ? (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-900 p-2 sm:p-6 rounded-2xl shadow-2xl w-full max-w-full sm:max-w-2xl min-h-fit space-y-6 max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <button className="absolute top-4 right-6 text-2xl text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300" onClick={onClose}>&times;</button>
-        <h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-gray-100">Import Transactions from CSV</h2>
-        {step === 1 && (
-          <div>
-            <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFile} className="mb-4" />
-            <p className="text-gray-500 text-sm">Upload a CSV file exported from your bank or credit card statement.</p>
-            {error && <div className="text-red-500 text-sm mt-2">{error}</div>}
-            <div className="mt-4 flex gap-2">
-              <button className="bg-neutral-800 text-gray-200 hover:bg-neutral-700 px-4 py-2 rounded transition-colors" onClick={onClose}>Cancel</button>
-            </div>
-          </div>
-        )}
-        {step === 2 && (
-          <div>
-            <h3 className="font-semibold mb-2">Map CSV Columns</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {['amount','date','category','description','payment_method'].map(field => (
-                <div key={field}>
-                  <label className="block mb-1 font-medium capitalize">{field.replace('_',' ')}</label>
-                  <select className="w-full border px-2 py-1 rounded" value={mapping[field]} onChange={e => handleMapChange(field, e.target.value)}>
-                    <option value="">-- Not Mapped --</option>
-                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
-                  </select>
+        <div className="flex space-x-2 mb-4">
+          <button className={`px-4 py-2 rounded-t-lg font-semibold ${tab === 'csv' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-200'}`} onClick={() => setTab('csv')}>CSV</button>
+          <button className={`px-4 py-2 rounded-t-lg font-semibold ${tab === 'photo' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-200'}`} onClick={() => setTab('photo')}>Photo</button>
+        </div>
+        {tab === 'csv' && (
+          <>
+            {step === 1 && (
+              <div>
+                <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFile} className="mb-4" />
+                <p className="text-gray-500 text-sm">Upload a CSV file exported from your bank or credit card statement.</p>
+                {csvError && <div className="text-red-500 text-sm mt-2">{csvError}</div>}
+                <div className="mt-4 flex gap-2">
+                  <button className="bg-neutral-800 text-gray-200 hover:bg-neutral-700 px-4 py-2 rounded transition-colors" onClick={onClose}>Cancel</button>
                 </div>
-              ))}
-            </div>
-            <div className="mt-4 flex gap-2">
-              <button className="bg-blue-600 text-white px-4 py-2 rounded" onClick={handlePreview}>Preview</button>
-              <button className="bg-gray-200 text-gray-700 px-4 py-2 rounded" onClick={handleBackToFile}>Cancel</button>
-            </div>
-          </div>
+              </div>
+            )}
+            {step === 2 && (
+              <div>
+                <h3 className="font-semibold mb-2">Map Columns</h3>
+                {headers.map(header => (
+                  <div key={header} className="mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{header}</label>
+                    <select className="w-full border rounded p-2" value={mapping[header] || ''} onChange={e => handleMapChange(header, e.target.value)}>
+                      <option value="">Ignore</option>
+                      <option value="amount">Amount</option>
+                      <option value="date">Date</option>
+                      <option value="category">Category</option>
+                      <option value="description">Description</option>
+                      <option value="payment_method">Payment Method</option>
+                    </select>
+                  </div>
+                ))}
+                <button className="bg-blue-600 text-white px-4 py-2 rounded mt-4" onClick={handlePreview}>Preview</button>
+              </div>
+            )}
+            {step === 3 && (
+              <div>
+                <h3 className="font-semibold mb-2">Preview & Import</h3>
+                <div className="overflow-x-auto max-h-64 mb-4">
+                  <table className="min-w-full text-sm border">
+                    <thead>
+                      <tr>
+                        <th className="border px-2 py-1">Amount</th>
+                        <th className="border px-2 py-1">Date</th>
+                        <th className="border px-2 py-1">Category</th>
+                        <th className="border px-2 py-1">Description</th>
+                        <th className="border px-2 py-1">Payment Method</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.map((row, i) => (
+                        <tr key={i}>
+                          <td className="border px-2 py-1">{row.amount}</td>
+                          <td className="border px-2 py-1">{row.date}</td>
+                          <td className="border px-2 py-1">Other</td>
+                          <td className="border px-2 py-1">Imported Transaction</td>
+                          <td className="border px-2 py-1">{row.payment_method}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <button className="bg-blue-600 text-white px-4 py-2 rounded mr-2" onClick={handleImport}>Import</button>
+                <button className="bg-gray-200 text-gray-700 px-4 py-2 rounded" onClick={onClose}>Cancel</button>
+              </div>
+            )}
+          </>
         )}
-        {step === 3 && (
+        {tab === 'photo' && (
           <div>
-            <h3 className="font-semibold mb-2">Preview & Import</h3>
-            <div className="overflow-x-auto max-h-64 mb-4">
-              <table className="min-w-full text-sm border">
-                <thead>
-                  <tr>
-                    <th className="border px-2 py-1">Amount</th>
-                    <th className="border px-2 py-1">Date</th>
-                    <th className="border px-2 py-1">Category</th>
-                    <th className="border px-2 py-1">Description</th>
-                    <th className="border px-2 py-1">Payment Method</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {preview.map((row, i) => (
-                    <tr key={i}>
-                      <td className="border px-2 py-1">{row.amount}</td>
-                      <td className="border px-2 py-1">{row.date}</td>
-                      <td className="border px-2 py-1">Other</td>
-                      <td className="border px-2 py-1">Imported Transaction</td>
-                      <td className="border px-2 py-1">{row.payment_method}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <input type="file" accept="image/*" onChange={handlePhoto} className="mb-4" />
+            {photoError && <div className="text-red-500 text-sm mb-2">{photoError}</div>}
+            {photoPreview && (
+              <div className="mb-4">
+                <img src={photoPreview} alt="Preview" className="max-h-48 rounded shadow mx-auto" />
+              </div>
+            )}
+            {ocrError && <div className="text-red-500 text-sm mb-2">{ocrError}</div>}
+            <div className="flex gap-2 items-center">
+              <button className="bg-neutral-800 text-gray-200 hover:bg-neutral-700 px-4 py-2 rounded transition-colors" onClick={onClose}>Cancel</button>
+              {photo && <button className="bg-blue-600 text-white px-4 py-2 rounded" onClick={() => { setPhoto(null); setPhotoPreview(null); setPhotoError(''); }}>Remove</button>}
+              {photo && <button className="bg-green-600 text-white px-4 py-2 rounded" onClick={handleExtract} disabled={ocrLoading}>{ocrLoading ? 'Extracting...' : 'Extract Transaction'}</button>}
             </div>
-            {error && <div className="text-red-500 text-sm mt-2">{error}</div>}
-            <button className="bg-blue-600 text-white px-4 py-2 rounded mr-2" onClick={handleImport}>Import</button>
-            <button className="bg-gray-200 text-gray-700 px-4 py-2 rounded" onClick={onClose}>Cancel</button>
           </div>
         )}
       </div>
     </div>
-  );
+  ) : null;
 };
 
 const TransactionHistory = () => {
@@ -672,6 +753,8 @@ const TransactionHistory = () => {
   const [selectAll, setSelectAll] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: NotificationType } | null>(null);
+  const [prefillData, setPrefillData] = useState<any | null>(null);
+  const [prefillPhoto, setPrefillPhoto] = useState<File | null>(null);
 
   // Helper to get category name
   const getCategoryName = (id: string) => {
@@ -757,7 +840,7 @@ const TransactionHistory = () => {
       <div className="flex justify-between items-center mb-4">
         <div className="flex gap-2">
           <button className="bg-blue-600 text-white px-4 py-2 rounded font-semibold" onClick={() => { setEditTransaction(null); setShowForm(true); }}>+ Add Transaction</button>
-          <button className="bg-green-600 text-white px-4 py-2 rounded font-semibold" onClick={() => setShowCsv(true)}>Import CSV</button>
+          <button className="bg-green-600 text-white px-4 py-2 rounded font-semibold" onClick={() => setShowCsv(true)}>Import</button>
         </div>
         <div className="flex flex-col ml-4 w-64">
           <label htmlFor="search-transactions" className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Search Transactions</label>
@@ -774,7 +857,18 @@ const TransactionHistory = () => {
           </div>
         </div>
       </div>
-      <CsvImportModal open={showCsv} onClose={() => setShowCsv(false)} categories={categories} onImport={handleCsvImport} />
+      <ImportModal
+        open={showCsv}
+        onClose={() => setShowCsv(false)}
+        categories={categories}
+        onImport={handleCsvImport}
+        onExtracted={(data, photo) => {
+          setShowCsv(false);
+          setPrefillData(data);
+          setPrefillPhoto(photo);
+          setShowForm(true);
+        }}
+      />
       {notification && (
         <NotificationBanner
           message={notification.message}
@@ -879,7 +973,12 @@ const TransactionHistory = () => {
           ))}
         </div>
       </div>
-      <TransactionFormModal open={showForm} onClose={() => { setShowForm(false); setEditTransaction(null); }} transaction={editTransaction} />
+      <TransactionFormModal
+        open={showForm}
+        onClose={() => { setShowForm(false); setEditTransaction(null); setPrefillData(null); setPrefillPhoto(null); }}
+        transaction={editTransaction || prefillData}
+        prefillPhoto={prefillPhoto}
+      />
     </div>
   );
 };
